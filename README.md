@@ -5,6 +5,13 @@ How to change the picuture &amp; get rid of elements on the homescreen of your L
 
 A guide to removing unwanted UI elements and replacing the hero banner image on WebOS 10 (Rockhopper / Starfish), using a bind-mount overlay — no permanent changes to the read-only filesystem.
 
+# Before / After
+## Before
+![Homescreen](SCR-20260428-shkq.jpeg)
+## After
+![Homescreen](SCR-20260428-shnq.jpeg)
+
+
 > **Tested on:** LG WebOS 10.2.2 (Rockhopper), EU region  
 > **Requirements:** Root access, active SSH connection, Homebrew Channel with `webosbrew` init.d support
 
