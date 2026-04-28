@@ -1,7 +1,7 @@
-# webos10-homescreen-customization
+# webos10(webOS25)-homescreen-customization
 How to change the picuture &amp; get rid of elements on the homescreen of your LG TV
 
-# Customizing the LG WebOS 10 Homescreen
+# Customizing the LG WebOS 10/WebOS25 Homescreen
 
 A guide to removing unwanted UI elements and replacing the hero banner image on WebOS 10 (Rockhopper / Starfish), using a bind-mount overlay — no permanent changes to the read-only filesystem.
 
