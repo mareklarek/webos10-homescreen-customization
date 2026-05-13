@@ -1,31 +1,30 @@
-# webos10(webOS25)-homescreen-customization
-How to change the picuture &amp; get rid of elements on the homescreen of your LG TV
+# Customizing the LG WebOS 10 / WebOS25 Homescreen
 
-# Customizing the LG WebOS 10/WebOS25 Homescreen
-
-A guide to removing unwanted UI elements and replacing the hero banner image on WebOS 10/ WebOS25 (Rockhopper / Starfish) using a bind-mount overlay — no permanent changes to the read-only filesystem.
-
-# Before / After
-## Before
-![Homescreen](SCR-20260428-shkq.jpeg)
-## After
-![Homescreen](SCR-20260428-shnq.jpeg)
-
+How to replace the background image, remove unwanted UI elements, and change system text on your LG TV — no permanent changes to the read-only filesystem.
 
 > **Tested on:** LG WebOS 10.2.2 (Rockhopper), EU region  
 > **Requirements:** Root access, active SSH connection, Homebrew Channel with `webosbrew` init.d support
 
 ---
 
+# Before / After
+## Before
+![Homescreen](SCR-20260428-shkq.jpeg)
+## After
+![Homescreen](webos-dev-tmp-58150897-6906-4e77-a7dd-f994a6e4282a.png)
+
+
 ## Background
 
-On WebOS 10, the Home app has been rewritten in **Flutter** (unlike older versions which used QML). The layout is controlled by XML files inside the app's Flutter assets directory:
+On WebOS 10, the Home app has been completely rewritten in **Flutter** (unlike older versions which used QML). The layout is controlled by XML files, and UI text comes from locale JSON files — all inside the app's Flutter assets directory:
 
 ```
 /usr/palm/applications/com.webos.app.home/data/flutter_assets/assets/
 ```
 
 This directory is on a read-only, cryptographically signed filesystem, so we can't edit files directly. Instead, we use a **bind mount overlay**: copy the assets to a writable location in `/tmp`, apply our modifications, and mount that over the original directory. The original files are never touched.
+
+One important detail: the `i18n` folder inside assets is a **symlink** to another read-only partition. If you want to modify locale files (e.g. to change or remove UI text), you need to replace the symlink with a real directory first. The apply script below handles this automatically.
 
 ---
 
@@ -37,15 +36,14 @@ Create your working directory on the writable developer partition:
 mkdir -p /media/developer/apps/usr/palm/applications/tld.my.customhome/assets/images/hd
 mkdir -p /media/developer/apps/usr/palm/applications/tld.my.customhome/assets/images/2k
 mkdir -p /media/developer/apps/usr/palm/applications/tld.my.customhome/assets/images/4k
+mkdir -p /media/developer/apps/usr/palm/applications/tld.my.customhome/assets/i18n
 ```
-
-This is the directory we'll be working in for all modifications.
 
 ---
 
 ## The apply.sh Script
 
-This script does all the heavy lifting. It copies the original assets to `/tmp`, overlays our modifications, mounts the result over the original directory, and restarts the Home app.
+This script copies the original assets to `/tmp`, replaces the i18n symlink with a real directory, overlays your modifications, mounts the result over the original directory, and restarts the Home app.
 
 ```sh
 cat > /media/developer/apps/usr/palm/applications/tld.my.customhome/apply.sh << 'EOF'
@@ -60,7 +58,15 @@ umount "$ASSETS_DIR" 2>/dev/null || true
 rm -rf /tmp/weboshome-merged
 mkdir /tmp/weboshome-merged
 cp -R --no-dereference "$ASSETS_DIR"/. /tmp/weboshome-merged/
-cp -R "$OVERRIDE_DIR"/. /tmp/weboshome-merged/
+
+# Replace i18n symlink with real directory
+rm /tmp/weboshome-merged/i18n
+cp -R "$OVERRIDE_DIR/i18n" /tmp/weboshome-merged/i18n
+
+# Copy rest of overrides
+cp -R "$OVERRIDE_DIR"/home.xml /tmp/weboshome-merged/
+cp -R "$OVERRIDE_DIR"/home_layoutShelfView.xml /tmp/weboshome-merged/
+cp -R "$OVERRIDE_DIR"/images/. /tmp/weboshome-merged/images/
 
 mount --bind /tmp/weboshome-merged "$ASSETS_DIR"
 pkill -f com.webos.app.home || true
@@ -87,7 +93,7 @@ cp /usr/palm/applications/com.webos.app.home/data/flutter_assets/assets/home_lay
 
 ### Remove the Recommended Shelf
 
-The `recommendedShelf` is the large content recommendation strip at the bottom of the screen (531px tall). It bothered me to always see the tiles which i don't cate about.
+The `recommendedShelf` is the large content recommendation strip at the bottom of the screen (531px tall), loaded dynamically from LG's servers.
 
 ```sh
 sed -i '/<item id="recommendedShelf"/d' \
@@ -103,24 +109,27 @@ sed -i '/<item id="qcardList"/d' \
     /media/developer/apps/usr/palm/applications/tld.my.customhome/assets/home.xml
 ```
 
-### Move the App List Down
+### Hide the Global Navigation Menu (top right icons)
 
-The app list position is controlled by `margin` elements stacked above it in `home.xml`. To push it further down, increase the height of the margin directly above the `appList` item. Open the file and adjust the value to your liking — for example, changing `itemHeight="72"` to `itemHeight="300"` or more.
+The `globalline` is the vertical icon menu on the side. Setting its size to 0 hides it without breaking the layout. Do not remove it entirely — it causes a black screen.
 
-After your edits, `home.xml` should look something like this:
+In `home.xml`, set the globalline item to width and height 0, and make sure it comes **after** herobanner inside the container, so it overflows off-screen rather than pushing content.
+
+### The home.xml after all modifications
+
+This is what a fully modified `home.xml` looks like with a fullscreen hero banner and the app list pushed to the bottom:
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <home version="2.0">
 <layout windowType="overlay" pageType="none" pageCount="1" defaultPage="0">
 <page pageBodyType="container">
-<item id="margin" itemWidth="3840" itemHeight="45" focusType="none"/>
-<item id="container" hasChildren="true" itemWidth="3840" itemHeight="900" focusType="scope">
-<item id="globalline" itemWidth="300" itemHeight="900" focusType="scope" autoFocus="false"/>
-<item id="herobanner" itemWidth="3492" itemHeight="900" focusType="scope" autoFocus="false"/>
+<item id="margin" itemWidth="3840" itemHeight="0" focusType="none"/>
+<item id="container" hasChildren="true" itemWidth="3840" itemHeight="1803" focusType="scope">
+<item id="herobanner" itemWidth="3840" itemHeight="1803" focusType="scope" autoFocus="false"/>
+<item id="globalline" itemWidth="0" itemHeight="0" focusType="scope" autoFocus="false"/>
 </item>
-<item id="margin" itemWidth="3840" itemHeight="74" focusType="none"/>
-<item id="margin" itemWidth="3840" itemHeight="600" focusType="none"/>
+<item id="margin" itemWidth="3840" itemHeight="50" focusType="none"/>
 <item id="appList" itemWidth="3840" itemHeight="248" focusType="scope" autoFocus="true"/>
 <item id="margin" itemWidth="3840" itemHeight="48" focusType="none"/>
 <item id="quickGuide" itemX="0" itemY="0" itemWidth="0" itemHeight="0" focusType="none"/>
@@ -129,7 +138,7 @@ After your edits, `home.xml` should look something like this:
 </home>
 ```
 
-> **Note:** Do not remove the `herobanner` item — it controls the background image display. Removing it results in a black screen.
+> Note: The top margin should be `itemHeight="0"` to avoid a thin black bar at the top.
 
 ---
 
@@ -143,7 +152,9 @@ assets/images/2k/bg_banner_img.png
 assets/images/4k/bg_banner_img.png
 ```
 
-Prepare your replacement image in the correct resolution and copy it to all three folders. Run this from your PC:
+If you use a fullscreen hero banner (`itemHeight="1803"`), the recommended image dimensions are **3840×1803px**. For the default size, use **3840×900px**.
+
+Copy your image to the TV from your PC:
 
 ```sh
 scp your_image.png root@<TV-IP>:/media/developer/apps/usr/palm/applications/tld.my.customhome/assets/images/4k/bg_banner_img.png
@@ -151,7 +162,37 @@ scp your_image.png root@<TV-IP>:/media/developer/apps/usr/palm/applications/tld.
 scp your_image.png root@<TV-IP>:/media/developer/apps/usr/palm/applications/tld.my.customhome/assets/images/hd/bg_banner_img.png
 ```
 
-> The TV will pick the appropriate resolution based on your display. Providing all three ensures compatibility.
+---
+
+## Changing or Removing UI Text
+
+The hero banner shows two text elements: a headline and a CTA button. These can be changed or removed by editing the locale JSON files.
+
+First, copy all locale files into your override directory:
+
+```sh
+cp /mnt/lg/wee/ui_l10n/usr/palm/applications/com.webos.app.home/data/flutter_assets/assets/i18n/* \
+   /media/developer/apps/usr/palm/applications/tld.my.customhome/assets/i18n/
+```
+
+Then edit the relevant strings in your locale file (e.g. `de.json`). To remove the text entirely, set the values to empty strings:
+
+```sh
+sed -i 's/"Start a new experience with webOS.": "[^"]*"/"Start a new experience with webOS.": ""/' \
+    /media/developer/apps/usr/palm/applications/tld.my.customhome/assets/i18n/de.json
+
+sed -i 's/"Go to Apps": "[^"]*"/"Go to Apps": ""/' \
+    /media/developer/apps/usr/palm/applications/tld.my.customhome/assets/i18n/de.json
+```
+
+Or replace them with custom text:
+
+```sh
+sed -i 's/"Start a new experience with webOS.": "[^"]*"/"Start a new experience with webOS.": "Your custom text here"/' \
+    /media/developer/apps/usr/palm/applications/tld.my.customhome/assets/i18n/de.json
+```
+
+> This works because the apply script replaces the i18n symlink with a real directory containing your modified files.
 
 ---
 
@@ -190,8 +231,11 @@ reboot
 /media/developer/apps/usr/palm/applications/tld.my.customhome/
 ├── apply.sh
 └── assets/
-    ├── home.xml                    (modified layout)
-    ├── home_layoutShelfView.xml    (modified shelf layout)
+    ├── home.xml
+    ├── home_layoutShelfView.xml
+    ├── i18n/
+    │   ├── de.json         (modified)
+    │   └── ...             (all other locale files, unmodified)
     └── images/
         ├── hd/
         │   └── bg_banner_img.png
@@ -205,6 +249,10 @@ reboot
 
 ## Notes & Limitations
 
-- The **hero banner text** ("Experience the new with webOS") and its CTA button are rendered by the Flutter app on top of the background image and loaded from LG's servers. They cannot currently be removed via XML modifications alone.
-- The exact XML element names and file structure may differ between TV models, regions, and WebOS versions. Always inspect the original files on your specific TV first.
+- The XML element names and file structure may differ between TV models, regions, and WebOS versions. Always inspect the original files on your specific TV first.
 - The overlay is applied in `/tmp` and is lost on reboot — that's intentional and makes this approach safe to experiment with.
+- Icon size is hardcoded in the Flutter binary (`libapp.so`) and cannot be changed via XML. `option="webOS24"` and other values on the AppList item are ignored.
+- A built-in clock component exists in the senior layout (`home_lg.xml`) but does not render outside of that layout context.
+
+## Credits
+thanks to /u/really_accidental for the tip with hiding the global navigation for a even slicker look
