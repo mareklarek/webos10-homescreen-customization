@@ -57,7 +57,7 @@ OVERRIDE_DIR=/media/developer/apps/usr/palm/applications/tld.my.customhome/asset
 umount "$ASSETS_DIR" 2>/dev/null || true
 rm -rf /tmp/weboshome-merged
 mkdir /tmp/weboshome-merged
-cp -R --no-dereference "$ASSETS_DIR"/. /tmp/weboshome-merged/
+cp -a "$ASSETS_DIR"/. /tmp/weboshome-merged/
 
 # Replace i18n symlink with real directory
 rm /tmp/weboshome-merged/i18n
